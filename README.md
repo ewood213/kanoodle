@@ -1,0 +1,1 @@
+A project that visualizes and solves the game "kanoodle"
