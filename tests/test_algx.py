@@ -8,7 +8,6 @@ def test_wikipedia_solution():
                       [0, 0, 1, 0, 1, 1, 0],
                       [0, 1, 1, 0, 0, 1, 1],
                       [0, 1, 0, 0, 0, 0, 1]])
-    print(algx.exact_cover(array))
     assert algx.exact_cover(array) == set([1, 3, 5])
 
 def test_no_solution1():
