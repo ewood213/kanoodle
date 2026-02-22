@@ -1,4 +1,5 @@
-from PyQt6.QtWidgets import QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QWidget, QHBoxLayout
+from PyQt6.QtCore import Qt
 from kanoodle.gui.piece_widget import PieceWidget
 from kanoodle.game.pieces import Piece
 import numpy as np
@@ -26,11 +27,12 @@ class GameWidget(QWidget):
 
         self.setWindowTitle("My App")
         self.setStyleSheet("background-color: darkgray")
-        layout = QVBoxLayout()
+        horizontal_layout = QHBoxLayout()
+        horizontal_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
         self.piece_widgets = [PieceWidget(piece, color) for piece, color in zip(KANOODLE_PIECES, KANOODLE_COLORS)]
         for widget in self.piece_widgets:
-            layout.addWidget(widget)
-        self.setLayout(layout)
+                horizontal_layout.addWidget(widget)
+        self.setLayout(horizontal_layout)
 
     def mousePressEvent(self, a0):
         for widget in self.piece_widgets:
