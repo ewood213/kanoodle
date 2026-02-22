@@ -1,6 +1,7 @@
 import kanoodle.game.board as board
 import kanoodle.game.pieces as pieces
 import kanoodle.algorithms.algorithm_x as algx
+import kanoodle.algorithms.dancing_links as dl
 from typing import List
 import numpy as np
 import copy
@@ -84,17 +85,17 @@ class Solver:
                 return True
         return False
 
-
-    def solve(self) -> List[PiecePlacement]:
+    def convert_solution_to_piece_placement(self, solution_rows):
         rows = self.board.cells.shape[0]
         cols = self.board.cells.shape[1]
-        incidence_matrix = self.create_incidence_matrix()
-        rows_used = algx.exact_cover(self.create_incidence_matrix())
 
-        # Return the pieces used and their orientation
-        pieces_and_locations = np.array([incidence_matrix[r] for r in rows_used if np.any(incidence_matrix[r][:len(self.pieces)])])
+        # Remove the row that contains already filled locations
+        pieces_only = np.array([r for r in solution_rows if np.count_nonzero(r[:len(self.pieces)]) == 1])
+        assert len(pieces_only) == len(self.pieces) and len(pieces_only) == len(solution_rows) - 1
         ret = [None for _ in range(len(self.pieces))]
-        for p in pieces_and_locations:
+
+        # Construct and return piece placements from our solution
+        for p in pieces_only:
             p_index = np.argwhere(p[:len(self.pieces)]).reshape(1)
             board_loc = p[len(self.pieces):].reshape(rows, cols)
             p_location = np.argwhere(board_loc)
@@ -104,3 +105,19 @@ class Solver:
             ret[p_index[0]] = PiecePlacement(top_left_location[0], top_left_location[1], layout)
         return ret
 
+
+    def solve_algx(self) -> List[PiecePlacement]:
+        incidence_matrix = self.create_incidence_matrix()
+        row_idxs_used = algx.exact_cover(self.create_incidence_matrix())
+        if row_idxs_used is None:
+            return None
+        solution_rows = np.array([incidence_matrix[r] for r in row_idxs_used])
+        return self.convert_solution_to_piece_placement(solution_rows)
+
+
+    def solve_dancing_links(self) -> List[PiecePlacement]:
+        incidence_matrix = self.create_incidence_matrix()
+        solution_rows = dl.solve_using_dancing_links(incidence_matrix)
+        if solution_rows is None:
+            return None
+        return self.convert_solution_to_piece_placement(solution_rows)
