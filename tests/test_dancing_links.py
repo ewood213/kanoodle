@@ -131,3 +131,14 @@ def test_no_solution():
                       [0, 1, 0, 0, 0, 0, 1]])
 
     assert dl.solve_using_dancing_links(array) == None
+
+def test_extra_sol_dl():
+    # setup test array so it has to pop a solution from its solution set
+    array = np.array([[1, 0, 0, 0],
+                     [0, 1, 0, 1],
+                     [0, 0, 1, 1],
+                     [0, 1, 1, 0],
+                     [1, 1, 1, 1]])
+    solution = dl.solve_using_dancing_links(array)
+    assert len(solution) == 1
+    assert np.array_equal(solution[0], np.array([1, 1, 1, 1]))

@@ -120,7 +120,7 @@ def uncover_column(c):
     c.right.left = c
     c.left.right = c
 
-def _search(root, cur_sol, k):
+def _search(root, cur_sol):
     if root.right == root:
         return cur_sol
     c = get_smallest_col(root)
@@ -130,11 +130,9 @@ def _search(root, cur_sol, k):
     # Remove column and add first row in column as solution
     cover_column(c)
     r = c.down
-    if len(cur_sol) < k+1:
-        assert len(cur_sol) == k
-        cur_sol.append(None)
+    cur_sol.append(None)
     while r is not c:
-        cur_sol[k] = r
+        cur_sol[-1] = r
         j = r.right
 
         # Remove columns that are also contained in row
@@ -143,7 +141,7 @@ def _search(root, cur_sol, k):
             j = j.right
 
         # Recurse to find solution
-        ret = _search(root, cur_sol, k+1)
+        ret = _search(root, cur_sol)
         if ret is not None:
             return ret
 
@@ -154,11 +152,14 @@ def _search(root, cur_sol, k):
             uncover_column(j.column)
             j = j.left
         r = r.down
+
+    # Make sure our unused solution doesn't stick around
+    cur_sol.pop()
     uncover_column(c)
 
 
 def search(root):
-    solution = _search(root, [], 0)
+    solution = _search(root, [])
     if solution is None:
         return None
     ret = []
