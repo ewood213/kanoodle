@@ -1,13 +1,16 @@
 from PyQt6.QtWidgets import QWidget, QGridLayout, QLabel, QMenu
+from PyQt6.QtCore import Qt, QPoint, pyqtSignal
 import kanoodle.game.pieces as pieces
 
 class ColorCell(QLabel):
-    def __init__(self, fill_color=None, border_color=None, size=30, transparent=False):
+    def __init__(self, fill_color=None, border_color=None, size=50, transparent=False):
         super().__init__()
         self.setFixedSize(size, size)  # Force square size
         self.transparent = transparent
         if not transparent:
             self.set_color(fill_color, border_color)
+        else:
+            self.set_transparent()
 
     def set_color(self, fill_color, border_color, border_thickness=2):
         self.setStyleSheet(f'''
@@ -15,14 +18,19 @@ class ColorCell(QLabel):
                 border: {border_thickness}px solid {border_color};
             ''')
 
+    def set_transparent(self):
+        self.setStyleSheet('background-color: transparent')
+
 
 class PieceWidget(QWidget):
-    def __init__(self, piece: pieces.Piece, color: str, square_size=30):
+    place_piece_signal = pyqtSignal(int)
+
+    def __init__(self, piece: pieces.Piece, color: str, idx: int, square_size=50):
         super().__init__()
         self.piece = piece
         self.color = color
         self.square_size = square_size
-        self.selected = False
+        self.idx = idx
         self.context_menu = QMenu()
         rotate_action = self.context_menu.addAction("rotate")
         mirror_action = self.context_menu.addAction("mirror")
@@ -38,9 +46,15 @@ class PieceWidget(QWidget):
         rows, cols = self.piece.layout.shape
         most = max(rows, cols)
         self.setFixedSize(most * square_size, most * square_size)  # cols -> width, rows -> height
+        self.original_pos = None
 
     def contextMenuEvent(self, a0):
         self.context_menu.exec(a0.globalPos())
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self.original_pos is None:
+            self.original_pos = self.pos()
 
     def update_piece_layout(self):
         old_layout = self.layout()
@@ -62,32 +76,27 @@ class PieceWidget(QWidget):
                 grid.addWidget(cell, i, j)
         return grid
 
-    def mousePressEvent(self, a0):
-        pos = a0.position().toPoint()
-        self.set_all_siblings_as_unselected()
-        if self.childAt(pos).transparent:
-            self.set_unselected()
-            return
-        self.set_selected()
+    def mousePressEvent(self, event):
+        self.widget_start_pos = None
+        self.mouse_move_pos = None
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.widget_start_pos = self.pos()
+            self.mouse_move_pos = event.globalPosition()
 
-    def set_all_siblings_as_unselected(self):
-        for sibling in self.parent().findChildren(PieceWidget):
-            if sibling is not self:
-                sibling.set_unselected()
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.MouseButton.LeftButton:
+            # adjust offset from clicked point to origin of widget
+            currPos = self.mapToGlobal(self.pos())
+            globalPos = event.globalPosition()
+            diff = (globalPos - self.mouse_move_pos).toPoint()
+            newPos = self.mapFromGlobal(currPos + diff)
+            self.move(newPos)
 
-    def set_selected(self):
-        self.selected = True
-        for i in range(self.grid.count()):
-            cell = self.grid.itemAt(i).widget()
-            if not cell.transparent:
-                cell.set_color(self.color, "white", border_thickness=3)
+            self.mouse_move_pos = globalPos
 
-    def set_unselected(self):
-        self.selected = False
-        for i in range(self.grid.count()):
-            cell = self.grid.itemAt(i).widget()
-            if not cell.transparent:
-                cell.set_color(self.color, "black")
+    def mouseReleaseEvent(self, event):
+        if self.widget_start_pos is not None:
+            self.place_piece_signal.emit(self.idx)
 
     def rotate(self):
         self.piece = self.piece.rotate_piece(pieces.Rotation.Ninety)
@@ -96,3 +105,6 @@ class PieceWidget(QWidget):
     def mirror(self):
         self.piece = self.piece.rotate_piece(pieces.Rotation.ZeroMirroed)
         self.update_piece_layout()
+
+    def return_to_original_location(self):
+        self.move(self.original_pos)

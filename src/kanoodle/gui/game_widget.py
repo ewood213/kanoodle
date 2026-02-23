@@ -1,6 +1,7 @@
-from PyQt6.QtWidgets import QWidget, QHBoxLayout
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout
 from PyQt6.QtCore import Qt
 from kanoodle.gui.piece_widget import PieceWidget
+from kanoodle.gui.board_widget import BoardWidget
 from kanoodle.game.pieces import Piece
 import numpy as np
 
@@ -24,16 +25,35 @@ KANOODLE_COLORS = ['#D3CCCA', '#76C3D2', '#7943B7', '#01A74C', '#0243B5', '#B2BB
 class GameWidget(QWidget):
     def __init__(self):
         super().__init__()
-
         self.setWindowTitle("My App")
-        self.setStyleSheet("background-color: darkgray")
-        horizontal_layout = QHBoxLayout()
-        horizontal_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
-        self.piece_widgets = [PieceWidget(piece, color) for piece, color in zip(KANOODLE_PIECES, KANOODLE_COLORS)]
-        for widget in self.piece_widgets:
-                horizontal_layout.addWidget(widget)
-        self.setLayout(horizontal_layout)
+        self.setStyleSheet("background-color: gray")
+        layout = QVBoxLayout()
 
-    def mousePressEvent(self, a0):
-        for widget in self.piece_widgets:
-            widget.set_unselected()
+        self.board = BoardWidget(5, 11, "dimgray", 50)
+        board_layout = QVBoxLayout()
+        board_layout.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignBottom)
+        board_layout.addWidget(self.board)
+        layout.addLayout(board_layout)
+
+        horizontal_layout1 = QHBoxLayout()
+        horizontal_layout1.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
+        horizontal_layout2 = QHBoxLayout()
+        horizontal_layout2.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
+        self.piece_widgets = [PieceWidget(piece, color, i) for i, (piece, color) in enumerate(zip(KANOODLE_PIECES, KANOODLE_COLORS))]
+        for i, widget in enumerate(self.piece_widgets):
+                widget.place_piece_signal.connect(self.try_place_piece)
+                if i < len(self.piece_widgets) // 2:
+                    horizontal_layout1.addWidget(widget)
+                else:
+                     horizontal_layout2.addWidget(widget)
+        layout.addLayout(horizontal_layout1)
+        layout.addLayout(horizontal_layout2)
+        self.setLayout(layout)
+
+    def try_place_piece(self, piece_index):
+        piece_widget = self.piece_widgets[piece_index]
+        if self.board.can_place_piece(piece_widget):
+            self.board.add_piece_to_board(piece_widget)
+            piece_widget.hide()
+        piece_widget.return_to_original_location()
+
