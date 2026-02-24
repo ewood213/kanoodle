@@ -1,12 +1,13 @@
-from PyQt6.QtWidgets import QWidget, QGridLayout, QLabel, QMenu
-from PyQt6.QtCore import Qt, QPoint, pyqtSignal
+from PyQt6.QtWidgets import QWidget, QGridLayout, QLabel, QMenu, QApplication
+from PyQt6.QtCore import Qt, pyqtSignal, QEvent
 import kanoodle.game.pieces as pieces
 
 class ColorCell(QLabel):
-    def __init__(self, fill_color=None, border_color=None, size=50, transparent=False):
+    def __init__(self, fill_color=None, border_color=None, size=50, transparent=False, clicked_signal=None):
         super().__init__()
         self.setFixedSize(size, size)  # Force square size
         self.transparent = transparent
+        self.clicked_signal = clicked_signal
         if not transparent:
             self.set_color(fill_color, border_color)
         else:
@@ -21,10 +22,15 @@ class ColorCell(QLabel):
     def set_transparent(self):
         self.setStyleSheet('background-color: transparent')
 
+    def mousePressEvent(self, event):
+        # This is a bit of a jank workaround, but we do not want transparent cells
+        # to be able to register a click
+        self.clicked_signal.emit(event)
 
 class PieceWidget(QWidget):
     place_piece_signal = pyqtSignal(int)
     remove_piece_signal = pyqtSignal(int)
+    clicked_signal = pyqtSignal(QEvent)
 
     def __init__(self, piece: pieces.Piece, color: str, idx: int, square_size=50):
         super().__init__()
@@ -52,9 +58,10 @@ class PieceWidget(QWidget):
         self.setFixedSize(most * square_size, most * square_size)  # cols -> width, rows -> height
         self.original_pos = None
         self.placed = False
+        self.mouse_move_pos = None
 
     def contextMenuEvent(self, a0):
-        if not self.placed and not self.global_position_in_transparent(a0.globalPos()):
+        if not self.placed and self.global_position_within_bounds(a0.globalPos()):
             self.context_menu.exec(a0.globalPos())
 
     def showEvent(self, event):
@@ -76,30 +83,28 @@ class PieceWidget(QWidget):
         for i in range(most):
             for j in range(most):
                 if i >= rows or j >= cols or self.piece.layout[i][j] == 0:
-                    cell = ColorCell(size=self.square_size, transparent=True)
+                    cell = ColorCell(size=self.square_size, transparent=True, clicked_signal=self.clicked_signal)
                 else:
-                    cell = ColorCell(self.color, "black", size=self.square_size)
+                    cell = ColorCell(self.color, "black", size=self.square_size, clicked_signal=self.clicked_signal)
                 grid.addWidget(cell, i, j)
         return grid
 
-    def global_position_in_transparent(self, global_position):
+    def global_position_within_bounds(self, global_position):
         for i in range(self.layout().count()):
             cell = self.layout().itemAt(i).widget()
             local_position = cell.mapFromGlobal(global_position)
             if cell.rect().contains(local_position):
-                return cell.transparent
-        assert False
+                return not cell.transparent
+        return False
 
     def mousePressEvent(self, event):
-        self.widget_start_pos = None
         self.mouse_move_pos = None
         if event.button() == Qt.MouseButton.LeftButton:
             self.raise_()
-            self.widget_start_pos = self.pos()
             self.mouse_move_pos = event.globalPosition()
 
     def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.MouseButton.LeftButton:
+        if event.buttons() == Qt.MouseButton.LeftButton and self.mouse_move_pos is not None:
             # adjust offset from clicked point to origin of widget
             currPos = self.mapToGlobal(self.pos())
             globalPos = event.globalPosition()
@@ -111,8 +116,9 @@ class PieceWidget(QWidget):
                 self.remove_piece_signal.emit(self.idx)
 
     def mouseReleaseEvent(self, event):
-        if self.widget_start_pos is not None:
+        if self.mouse_move_pos is not None:
             self.place_piece_signal.emit(self.idx)
+            self.mouse_move_pos = None
 
     def rotate(self):
         self.piece = self.piece.rotate_piece(pieces.Rotation.Ninety)

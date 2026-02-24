@@ -1,5 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QApplication, QVBoxLayout
 from kanoodle.gui.piece_widget import PieceWidget
 from kanoodle.gui.board_widget import BoardWidget
 from kanoodle.game.pieces import Piece
@@ -41,6 +40,7 @@ class GameWidget(QWidget):
             w.show()
             w.place_piece_signal.connect(self.try_place_piece)
             w.remove_piece_signal.connect(self.remove_piece)
+            w.clicked_signal.connect(self.handle_piece_click)
         self.setLayout(layout)
 
     def resizeEvent(self, event):
@@ -86,3 +86,8 @@ class GameWidget(QWidget):
         piece_widget = self.piece_widgets[piece_index]
         self.board.remove_piece(piece_widget)
         piece_widget.placed = False
+
+    def handle_piece_click(self, event):
+        for w in self.piece_widgets:
+            if w.global_position_within_bounds(event.globalPosition().toPoint()):
+                QApplication.sendEvent(w, event)
