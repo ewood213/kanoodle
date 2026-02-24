@@ -24,6 +24,7 @@ class ColorCell(QLabel):
 
 class PieceWidget(QWidget):
     place_piece_signal = pyqtSignal(int)
+    remove_piece_signal = pyqtSignal(int)
 
     def __init__(self, piece: pieces.Piece, color: str, idx: int, square_size=50):
         super().__init__()
@@ -41,15 +42,20 @@ class PieceWidget(QWidget):
         self.grid.setContentsMargins(0,0,0,0)
         self.add_items_to_grid(self.grid)
         self.setLayout(self.grid)
+        policy = self.sizePolicy()
+        policy.setRetainSizeWhenHidden(True)
+        self.setSizePolicy(policy)
 
          # Set the widget size based on number of rows and columns
         rows, cols = self.piece.layout.shape
         most = max(rows, cols)
         self.setFixedSize(most * square_size, most * square_size)  # cols -> width, rows -> height
         self.original_pos = None
+        self.placed = False
 
     def contextMenuEvent(self, a0):
-        self.context_menu.exec(a0.globalPos())
+        if not self.placed and not self.global_position_in_transparent(a0.globalPos()):
+            self.context_menu.exec(a0.globalPos())
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -76,10 +82,19 @@ class PieceWidget(QWidget):
                 grid.addWidget(cell, i, j)
         return grid
 
+    def global_position_in_transparent(self, global_position):
+        for i in range(self.layout().count()):
+            cell = self.layout().itemAt(i).widget()
+            local_position = cell.mapFromGlobal(global_position)
+            if cell.rect().contains(local_position):
+                return cell.transparent
+        assert False
+
     def mousePressEvent(self, event):
         self.widget_start_pos = None
         self.mouse_move_pos = None
         if event.button() == Qt.MouseButton.LeftButton:
+            self.raise_()
             self.widget_start_pos = self.pos()
             self.mouse_move_pos = event.globalPosition()
 
@@ -91,8 +106,9 @@ class PieceWidget(QWidget):
             diff = (globalPos - self.mouse_move_pos).toPoint()
             newPos = self.mapFromGlobal(currPos + diff)
             self.move(newPos)
-
             self.mouse_move_pos = globalPos
+            if self.placed:
+                self.remove_piece_signal.emit(self.idx)
 
     def mouseReleaseEvent(self, event):
         if self.widget_start_pos is not None:

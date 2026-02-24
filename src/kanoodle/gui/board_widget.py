@@ -1,22 +1,35 @@
 from PyQt6.QtWidgets import QWidget, QGridLayout, QLabel, QMenu
-from PyQt6.QtCore import Qt, pyqtSignal
-import kanoodle.game.pieces as pieces
-import kanoodle.game.board as board
+from PyQt6.QtCore import pyqtSignal
+import kanoodle.gui.piece_widget as pieces
 
 class ColorCell(QLabel):
-    def __init__(self, fill_color=None, border_color=None, size=30, transparent=False, piece_index=-1):
+    def __init__(self, fill_color=None, border_color='black', size=30, piece_index=-1):
         super().__init__()
-        self.setFixedSize(size, size)  # Force square size
-        self.transparent = transparent
+        self.setFixedSize(size, size)
         self.piece_index = piece_index
-        if not transparent:
-            self.set_color(fill_color, border_color)
+        self.fill_color = fill_color
+        self.border_color = border_color
+        self.set_style()
 
-    def set_color(self, fill_color, border_color, border_thickness=2):
+    def set_color(self, fill_color, border_color):
+        self.fill_color = fill_color
+        self.border_color = border_color
+        self.set_style()
+
+    def set_style(self):
         self.setStyleSheet(f'''
-                background-color: {fill_color};
-                border: {border_thickness}px solid {border_color};
+                background-color: {self.fill_color};
+                border: 2px solid {self.border_color};
             ''')
+
+    def set_piece(self, piece_widget):
+        self.piece_index = piece_widget.idx
+
+    def remove_piece(self):
+        self.piece_index = -1
+
+    def has_piece(self):
+        return self.piece_index != -1
 
 
 class BoardWidget(QWidget):
@@ -42,3 +55,48 @@ class BoardWidget(QWidget):
                     cell = ColorCell(self.color, "black", self.square_size)
                     grid.addWidget(cell, i, j)
         return grid
+
+    def find_cell_that_contains_point(self, global_center):
+        for i in range(self.layout().count()):
+            cell_widget = self.layout().itemAt(i).widget()
+            widget_center_in_cell = cell_widget.mapFromGlobal(global_center)
+            if cell_widget.rect().contains(widget_center_in_cell):
+                    return cell_widget
+        return None
+
+    def can_place_piece(self, piece_widget: pieces.PieceWidget):
+        for i in range(piece_widget.layout().count()):
+            widget = piece_widget.layout().itemAt(i).widget()
+            if widget.transparent:
+                continue
+            global_center = widget.mapToGlobal(widget.rect().center())
+            containing_cell = self.find_cell_that_contains_point(global_center)
+            if containing_cell is None or containing_cell.has_piece():
+                 return False
+        return True
+
+    def place_piece(self, piece_widget: pieces.PieceWidget):
+        assert self.can_place_piece(piece_widget)
+        for i in range(piece_widget.layout().count()):
+            widget = piece_widget.layout().itemAt(i).widget()
+            if widget.transparent:
+                continue
+            global_center = widget.mapToGlobal(widget.rect().center())
+            containing_cell = self.find_cell_that_contains_point(global_center)
+            containing_cell.set_piece(piece_widget)
+            cell_center_global = containing_cell.mapToGlobal(
+                containing_cell.rect().center()
+            )
+            offset_global = cell_center_global - global_center
+        top_left_global = piece_widget.mapToGlobal(piece_widget.rect().topLeft()) + offset_global
+        piece_widget.move(piece_widget.parentWidget().mapFromGlobal(top_left_global))
+
+    def remove_piece(self, piece_widget):
+        removed = False
+        for i in range(self.layout().count()):
+            widget = self.layout().itemAt(i).widget()
+            if widget.piece_index == piece_widget.idx:
+                widget.remove_piece()
+                removed = True
+        assert removed
+
