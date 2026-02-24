@@ -1,4 +1,5 @@
 from PyQt6.QtWidgets import QWidget, QApplication, QVBoxLayout
+from PyQt6.QtCore import Qt
 from kanoodle.gui.piece_widget import PieceWidget
 from kanoodle.gui.board_widget import BoardWidget
 from kanoodle.game.pieces import Piece
