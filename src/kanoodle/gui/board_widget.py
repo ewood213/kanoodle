@@ -34,12 +34,13 @@ class ColorCell(QLabel):
 
 
 class BoardWidget(QWidget):
-    def __init__(self, rows, cols, color, square_size=30):
+    def __init__(self, rows, cols, color, square_size=30, piece_placed_sound=None):
         super().__init__()
         self.rows = rows
         self.cols = cols
         self.square_size = square_size
         self.color = color
+        self.piece_placed_sound = piece_placed_sound
 
         self.piece_set_signal = pyqtSignal(bool, int)
 
@@ -92,6 +93,8 @@ class BoardWidget(QWidget):
         top_left_global = piece_widget.mapToGlobal(piece_widget.rect().topLeft()) + offset_global
         piece_widget.move(piece_widget.parentWidget().mapFromGlobal(top_left_global))
         piece_widget.placed = True
+        if self.piece_placed_sound is not None:
+            self.piece_placed_sound.play()
 
     def remove_piece(self, piece_widget):
         removed = False

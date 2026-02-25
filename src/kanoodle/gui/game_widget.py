@@ -1,5 +1,5 @@
-from PyQt6.QtWidgets import QWidget, QApplication, QVBoxLayout, QHBoxLayout, QPushButton, QSpacerItem
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt6.QtWidgets import QWidget, QApplication, QVBoxLayout, QHBoxLayout, QPushButton
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QUrl
 from kanoodle.gui.piece_widget import PieceWidget
 from kanoodle.gui.board_widget import BoardWidget
 from kanoodle.game.pieces import Piece
@@ -7,6 +7,9 @@ from kanoodle.game.board import Board as SolverBoard
 from kanoodle.algorithms.solver import Solver
 import numpy as np
 import time
+import os
+from PyQt6.QtMultimedia import QSoundEffect
+
 _p0 = Piece(np.array([[1, 1], [0, 1]]))
 _p1 = Piece(np.array([[1, 0, 0], [1, 0, 0], [1, 1, 1]]))
 _p2 = Piece(np.array([[1, 1, 1, 1]]))
@@ -57,7 +60,11 @@ class GameWidget(QWidget):
         board_row_layout.addStretch(1)
 
         # Add board
-        self.board = BoardWidget(5, 11, "dimgray", 50)
+        assets_directory = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) + "/assets"
+        piece_placed_sound_path = QUrl.fromLocalFile(assets_directory + "/piece_placed_sound.wav")
+        piece_placed_sound = QSoundEffect()
+        piece_placed_sound.setSource(piece_placed_sound_path)
+        self.board = BoardWidget(5, 11, "dimgray", 50, piece_placed_sound)
         board_row_layout.addWidget(self.board)
         board_row_layout.addStretch(1)
 
@@ -164,15 +171,15 @@ class GameWidget(QWidget):
 
         time_between_placements = 500
         for i, (idx, placement) in enumerate(result):
-            place_piece_func = lambda idx=idx, placement=placement: self.place_solved_piece(idx, placement)
+            place_piece_func = lambda idx=idx, placement=placement: self.place_piece_on_board(idx, placement.row, placement.col, placement.layout)
             QTimer.singleShot(i * time_between_placements, place_piece_func)
         QTimer.singleShot(i * time_between_placements, self.finish_placing_pieces)
 
-    def place_solved_piece(self, idx, placement):
+    def place_piece_on_board(self, idx, row, col, layout):
         piece_widget = self.piece_widgets[idx]
-        piece_widget.piece = Piece(placement.layout)
+        piece_widget.piece = Piece(layout)
         piece_widget.update_piece_layout()
-        top_left_cell = self.board.get_cell_at_idx(placement.row, placement.col)
+        top_left_cell = self.board.get_cell_at_idx(row, col)
         cell_global_pos = top_left_cell.mapToGlobal(top_left_cell.rect().topLeft())
         piece_widget.raise_()
         piece_widget.move(piece_widget.parent().mapFromGlobal(cell_global_pos))
