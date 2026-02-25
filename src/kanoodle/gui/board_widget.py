@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QWidget, QGridLayout, QLabel, QMenu
 from PyQt6.QtCore import pyqtSignal
 import kanoodle.gui.piece_widget as pieces
+import numpy as np
 
 class ColorCell(QLabel):
     def __init__(self, fill_color=None, border_color='black', size=30, piece_index=-1):
@@ -90,13 +91,30 @@ class BoardWidget(QWidget):
             offset_global = cell_center_global - global_center
         top_left_global = piece_widget.mapToGlobal(piece_widget.rect().topLeft()) + offset_global
         piece_widget.move(piece_widget.parentWidget().mapFromGlobal(top_left_global))
+        piece_widget.placed = True
 
     def remove_piece(self, piece_widget):
         removed = False
+        assert piece_widget.placed
         for i in range(self.layout().count()):
             widget = self.layout().itemAt(i).widget()
             if widget.piece_index == piece_widget.idx:
                 widget.remove_piece()
                 removed = True
+        piece_widget.placed = False
         assert removed
+
+    def get_occupancy_grid(self):
+        layout = np.zeros((self.rows, self.cols))
+        for i in range(self.rows):
+            for j in range(self.cols):
+                pos = i * self.cols + j
+                cell = self.grid.itemAt(pos).widget()
+                if cell.has_piece():
+                    layout[i][j] = 1
+        return layout
+
+    def get_cell_at_idx(self, row, col):
+        assert 0 <= row < self.rows and 0 <= col < self.cols
+        return self.grid.itemAt(row * self.cols + col).widget()
 

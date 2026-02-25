@@ -59,6 +59,8 @@ class PieceWidget(QWidget):
         self.original_pos = None
         self.placed = False
         self.mouse_move_pos = None
+        self.mouse_moved = False
+        self.can_move = True
 
     def contextMenuEvent(self, a0):
         if not self.placed and self.global_position_within_bounds(a0.globalPos()):
@@ -99,7 +101,8 @@ class PieceWidget(QWidget):
 
     def mousePressEvent(self, event):
         self.mouse_move_pos = None
-        if event.button() == Qt.MouseButton.LeftButton:
+        self.mouse_moved = False
+        if event.button() == Qt.MouseButton.LeftButton and self.can_move:
             self.raise_()
             self.mouse_move_pos = event.globalPosition()
 
@@ -112,13 +115,15 @@ class PieceWidget(QWidget):
             newPos = self.mapFromGlobal(currPos + diff)
             self.move(newPos)
             self.mouse_move_pos = globalPos
+            self.mouse_moved = True
             if self.placed:
                 self.remove_piece_signal.emit(self.idx)
 
     def mouseReleaseEvent(self, event):
-        if self.mouse_move_pos is not None:
+        if self.mouse_move_pos is not None and self.mouse_moved:
             self.place_piece_signal.emit(self.idx)
             self.mouse_move_pos = None
+            self.mouse_moved = False
 
     def rotate(self):
         self.piece = self.piece.rotate_piece(pieces.Rotation.Ninety)

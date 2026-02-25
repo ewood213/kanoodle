@@ -89,9 +89,16 @@ class Solver:
         rows = self.board.cells.shape[0]
         cols = self.board.cells.shape[1]
 
+        # Account for the row that is the partially filled board
+        if np.any(self.board.cells == 1):
+            expected_solution_rows = len(self.pieces) + 1
+        else:
+            expected_solution_rows = len(self.pieces)
+
+
         # Remove the row that contains already filled locations
         pieces_only = np.array([r for r in solution_rows if np.count_nonzero(r[:len(self.pieces)]) == 1])
-        assert len(pieces_only) == len(self.pieces) and len(pieces_only) == len(solution_rows) - 1
+        assert len(pieces_only) == len(self.pieces) and expected_solution_rows == len(solution_rows)
         ret = [None for _ in range(len(self.pieces))]
 
         # Construct and return piece placements from our solution
