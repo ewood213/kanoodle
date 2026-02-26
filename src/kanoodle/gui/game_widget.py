@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QApplication, QVBoxLayout, QHBoxLayout, QPushButton
+from PyQt6.QtWidgets import QWidget, QApplication, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QUrl
 from kanoodle.gui.piece_widget import PieceWidget
 from kanoodle.gui.board_widget import BoardWidget
@@ -28,7 +28,7 @@ KANOODLE_COLORS = ['#D3CCCA', '#76C3D2', '#7943B7', '#01A74C', '#0243B5', '#B2BB
                    '#61EB5D', '#F2C4C5', '#EF4BA2', '#F6D400', '#D81511', '#FD7A07' ]
 
 class SolverThread(QThread):
-    finished = pyqtSignal(object)
+    finished = pyqtSignal(object, float)
 
     def __init__(self, board_layout, pieces, indexes):
         super().__init__()
@@ -41,11 +41,10 @@ class SolverThread(QThread):
         piece_placements = self.solver.solve_dancing_links()
         time_for_algorithm = time.perf_counter() - start
         if piece_placements is None:
-            self.finished.emit(None)
+            self.finished.emit(None, 0)
         else:
-            print(f"Solving algorithm took {time_for_algorithm}s")
             ret = list(zip(self.indexes, piece_placements))
-            self.finished.emit(ret)
+            self.finished.emit(ret, time_for_algorithm)
 
 
 class GameWidget(QWidget):
@@ -59,11 +58,17 @@ class GameWidget(QWidget):
         board_row_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         board_row_layout.addStretch(1)
 
-        # Add board
+        # Create sounds
         assets_directory = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) + "/assets"
         piece_placed_sound_path = QUrl.fromLocalFile(assets_directory + "/piece_placed_sound.wav")
         piece_placed_sound = QSoundEffect()
         piece_placed_sound.setSource(piece_placed_sound_path)
+
+        reset_pieces_sound_path = QUrl.fromLocalFile(assets_directory + "/reset_pieces_sound.wav")
+        self.reset_pieces_sound = QSoundEffect()
+        self.reset_pieces_sound.setSource(reset_pieces_sound_path)
+        self.reset_pieces_sound.setVolume(.05)
+
         self.board = BoardWidget(5, 11, "dimgray", 50, piece_placed_sound)
         board_row_layout.addWidget(self.board)
         board_row_layout.addStretch(1)
@@ -77,18 +82,23 @@ class GameWidget(QWidget):
                                         background-color: #01A74C;
                                         color: black;
                                         ''')
-        button_layout.addWidget(self.solve_button, alignment=Qt.AlignmentFlag.AlignRight)
+        button_layout.addWidget(self.solve_button, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+
 
         self.reset_button = QPushButton("Reset Pieces")
         self.reset_button.clicked.connect(self.remove_all_pieces)
-        button_layout.addWidget(self.reset_button, alignment=Qt.AlignmentFlag.AlignRight)
+        button_layout.addWidget(self.reset_button, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
         self.reset_button.setStyleSheet('''
                                         background-color: dimgray;
                                         color: black;
                                         ''')
-
+        self.status_text = QLabel()
+        self.status_text.setMaximumHeight(self.status_text.sizeHint().height())
+        button_layout.addWidget(self.status_text)
+        button_layout.addStretch()
         board_row_layout.addLayout(button_layout)
         layout.addLayout(board_row_layout)
+        layout.addStretch()
 
         # Place pieces globally in two rows on the bottom
         self.piece_widgets = [PieceWidget(piece, color, i) for i, (piece, color) in enumerate(zip(KANOODLE_PIECES, KANOODLE_COLORS))]
@@ -159,16 +169,18 @@ class GameWidget(QWidget):
         for piece in self.piece_widgets:
             piece.can_move = False
         self.solve_button.setEnabled(False)
+        self.reset_button.setEnabled(False)
         self.solver_thread = SolverThread(board_layout, pieces, piece_indices)
         self.solver_thread.finished.connect(self.on_solving_done)
         self.solver_thread.start()
 
-    def on_solving_done(self, result):
+    def on_solving_done(self, result, time_for_algorithm):
         if result is None:
-            print("No solution for current board")
+            self.status_text.setText("No solution")
             self.finish_placing_pieces()
             return
 
+        self.status_text.setText(f"Solved in {time_for_algorithm:.2f}s")
         time_between_placements = 500
         for i, (idx, placement) in enumerate(result):
             place_piece_func = lambda idx=idx, placement=placement: self.place_piece_on_board(idx, placement.row, placement.col, placement.layout)
@@ -190,8 +202,12 @@ class GameWidget(QWidget):
         for piece in self.piece_widgets:
             piece.can_move = True
         self.solve_button.setEnabled(True)
+        self.reset_button.setEnabled(True)
 
     def remove_all_pieces(self):
+        if not any((w.placed for w in self.piece_widgets)):
+            return
+        self.reset_pieces_sound.play()
         for i in range(len(self.piece_widgets)):
             if self.piece_widgets[i].placed:
                 self.remove_piece(i)
