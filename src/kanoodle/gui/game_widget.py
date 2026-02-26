@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QApplication, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+from PyQt6.QtWidgets import QWidget, QApplication, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QComboBox
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QUrl
 from PyQt6.QtGui import QPixmap
 from kanoodle.gui.piece_widget import PieceWidget
@@ -9,7 +9,9 @@ from kanoodle.algorithms.solver import Solver
 import numpy as np
 import time
 import os
+from glob import glob
 from PyQt6.QtMultimedia import QSoundEffect
+import json
 
 _p0 = Piece(np.array([[1, 1], [0, 1]]))
 _p1 = Piece(np.array([[1, 0, 0], [1, 0, 0], [1, 1, 1]]))
@@ -54,7 +56,10 @@ class GameWidget(QWidget):
         self.setWindowTitle("Kanoodle!")
         self.setStyleSheet("background-color: gray")
         self.solver_thread = None
-        assets_directory = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) + "/assets"
+        root_directory = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        assets_directory = root_directory + "/assets"
+        puzzles_directory = root_directory + "/puzzles"
+        self.puzzles = self.load_puzzles(puzzles_directory)
 
         # Create sounds
         piece_placed_sound_path = QUrl.fromLocalFile(assets_directory + "/piece_placed_sound.wav")
@@ -71,7 +76,7 @@ class GameWidget(QWidget):
         layout.setContentsMargins(0,0,0,0)
 
         kanoodle_title = QLabel()
-        kanoodle_image = QPixmap(assets_directory + "/kanoodle_wordart_cropped.png").scaled(250, 250, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        kanoodle_image = QPixmap(assets_directory + "/kanoodle_wordart.png").scaled(250, 250, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         kanoodle_title.setPixmap(kanoodle_image)
         kanoodle_title.setContentsMargins(0,0,0,0)  # remove label internal padding
         layout.addWidget(kanoodle_title, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignCenter)
@@ -80,9 +85,25 @@ class GameWidget(QWidget):
         board_row_layout.setSpacing(0)
         board_row_layout.setContentsMargins(0, 0, 0, 0)
         board_row_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        puzzle_col_layout = QVBoxLayout()
+        puzzle_list_label = QLabel("Puzzles")
+        puzzle_list_label.setStyleSheet("color: white; font-size: 16pt")
+        puzzle_list_label.setFixedWidth(200)
+        puzzle_col_layout.addWidget(puzzle_list_label)
+
+        self.puzzle_list = QComboBox()
+        self.puzzle_list.setStyleSheet("selection-background-color: gray; font-size 12pt; color: black")
+        puzzle_names = [None] + ["#" + number for number, _ in self.puzzles]
+        self.puzzle_list.addItems(puzzle_names)
+        self.puzzle_list.activated.connect(lambda idx: self.puzzle_index_chosen(idx-1))
+        self.puzzle_list.setFixedWidth(80)
+        puzzle_col_layout.addWidget(self.puzzle_list)
+
+        puzzle_col_layout.addStretch()
+        board_row_layout.addLayout(puzzle_col_layout)
+
         board_row_layout.addStretch(1)
-
-
         self.board = BoardWidget(5, 11, "dimgray", 50, piece_placed_sound)
         board_row_layout.addWidget(self.board)
         board_row_layout.addStretch(1)
@@ -100,14 +121,16 @@ class GameWidget(QWidget):
 
 
         self.reset_button = QPushButton("Reset Pieces")
-        self.reset_button.clicked.connect(self.remove_all_pieces)
+        self.reset_button.clicked.connect(lambda: self.remove_all_pieces(play_sound=True))
         button_layout.addWidget(self.reset_button, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
         self.reset_button.setStyleSheet('''
                                         background-color: dimgray;
                                         color: black;
                                         ''')
         self.status_text = QLabel()
-        self.status_text.setMaximumHeight(self.status_text.sizeHint().height())
+        self.status_text.setStyleSheet("color: white; font-size: 12pt")
+        self.status_text.setFixedWidth(200)
+        self.status_text.setAlignment(Qt.AlignmentFlag.AlignRight)
         button_layout.addWidget(self.status_text)
         button_layout.addStretch()
         board_row_layout.addLayout(button_layout)
@@ -218,11 +241,38 @@ class GameWidget(QWidget):
         self.solve_button.setEnabled(True)
         self.reset_button.setEnabled(True)
 
-    def remove_all_pieces(self):
+    def remove_all_pieces(self, play_sound=True):
         if not any((w.placed for w in self.piece_widgets)):
             return
-        self.reset_pieces_sound.play()
+        if play_sound:
+            self.reset_pieces_sound.play()
         for i in range(len(self.piece_widgets)):
             if self.piece_widgets[i].placed:
                 self.remove_piece(i)
                 self.piece_widgets[i].return_to_original_location()
+
+    def load_puzzles(self, path):
+        puzzle_paths = glob(path + "/puzzle*.json")
+        # Add empty puzzle
+        puzzles = []
+
+        # Add puzzels in directory with number as key
+        for path in puzzle_paths:
+            fname = os.path.basename(path)
+            puzzle_number = fname[6:-5]
+            with open(path, 'r') as f:
+                puzzles.append((puzzle_number, json.load(f)))
+        puzzles.sort(key=lambda x: int(x[0]))
+        return puzzles
+
+    def puzzle_index_chosen(self, idx):
+        if idx == -1:
+            return
+        puzzle = self.puzzles[idx][1]
+        self.remove_all_pieces(play_sound=False)
+        for piece in puzzle:
+            idx = piece['index']
+            row = piece['row']
+            col = piece['col']
+            layout = np.array(piece['layout'])
+            self.place_piece_on_board(idx, row, col, layout)
