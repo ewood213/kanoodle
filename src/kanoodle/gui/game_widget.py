@@ -1,5 +1,6 @@
 from PyQt6.QtWidgets import QWidget, QApplication, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QUrl
+from PyQt6.QtGui import QPixmap
 from kanoodle.gui.piece_widget import PieceWidget
 from kanoodle.gui.board_widget import BoardWidget
 from kanoodle.game.pieces import Piece
@@ -53,13 +54,9 @@ class GameWidget(QWidget):
         self.setWindowTitle("Kanoodle!")
         self.setStyleSheet("background-color: gray")
         self.solver_thread = None
-        layout = QVBoxLayout()
-        board_row_layout = QHBoxLayout()
-        board_row_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        board_row_layout.addStretch(1)
+        assets_directory = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) + "/assets"
 
         # Create sounds
-        assets_directory = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) + "/assets"
         piece_placed_sound_path = QUrl.fromLocalFile(assets_directory + "/piece_placed_sound.wav")
         piece_placed_sound = QSoundEffect()
         piece_placed_sound.setSource(piece_placed_sound_path)
@@ -68,6 +65,23 @@ class GameWidget(QWidget):
         self.reset_pieces_sound = QSoundEffect()
         self.reset_pieces_sound.setSource(reset_pieces_sound_path)
         self.reset_pieces_sound.setVolume(.05)
+
+        layout = QVBoxLayout()
+        layout.setSpacing(0)
+        layout.setContentsMargins(0,0,0,0)
+
+        kanoodle_title = QLabel()
+        kanoodle_image = QPixmap(assets_directory + "/kanoodle_wordart_cropped.png").scaled(250, 250, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        kanoodle_title.setPixmap(kanoodle_image)
+        kanoodle_title.setContentsMargins(0,0,0,0)  # remove label internal padding
+        layout.addWidget(kanoodle_title, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignCenter)
+
+        board_row_layout = QHBoxLayout()
+        board_row_layout.setSpacing(0)
+        board_row_layout.setContentsMargins(0, 0, 0, 0)
+        board_row_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        board_row_layout.addStretch(1)
+
 
         self.board = BoardWidget(5, 11, "dimgray", 50, piece_placed_sound)
         board_row_layout.addWidget(self.board)
@@ -98,7 +112,7 @@ class GameWidget(QWidget):
         button_layout.addStretch()
         board_row_layout.addLayout(button_layout)
         layout.addLayout(board_row_layout)
-        layout.addStretch()
+        layout.addStretch(1)
 
         # Place pieces globally in two rows on the bottom
         self.piece_widgets = [PieceWidget(piece, color, i) for i, (piece, color) in enumerate(zip(KANOODLE_PIECES, KANOODLE_COLORS))]
@@ -117,7 +131,7 @@ class GameWidget(QWidget):
 
     def position_piece_rows(self):
         padding = 10
-        first_row_start = int(self.height() * .5)
+        first_row_start = self.board.y() + self.board.size().height() + 20
         first_row = self.piece_widgets[:len(self.piece_widgets) // 2]
         second_row = self.piece_widgets[len(self.piece_widgets) // 2:]
         self.position_piece_row(first_row_start, first_row, padding)

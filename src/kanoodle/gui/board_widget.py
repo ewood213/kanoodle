@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QGridLayout, QLabel, QMenu
+from PyQt6.QtWidgets import QWidget, QGridLayout, QLabel
 from PyQt6.QtCore import pyqtSignal
 import kanoodle.gui.piece_widget as pieces
 import numpy as np
